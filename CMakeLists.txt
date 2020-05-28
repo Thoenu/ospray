@@ -57,6 +57,7 @@ add_subdirectory(ospray)
 ## OSPRay sample apps ##
 if (OSPRAY_ENABLE_APPS)
   add_subdirectory(apps)
+  add_subdirectory(lerc)
 endif()
 
 ## Modules ##
