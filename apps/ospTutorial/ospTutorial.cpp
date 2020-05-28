@@ -19,6 +19,8 @@
 #include "jsoncpp/json/json.h"
 #include "ospray/ospray_cpp.h"
 
+#include "SpatialKey.h"
+
 #include <boost/thread/thread.hpp>
 
 #include <errno.h>
@@ -35,6 +37,7 @@
 #else
 #include <alloca.h>
 #endif
+#include <apps\ospTutorial\ospTerrainScene.h>
 
 // #define NORMALS
 // #define PATHTRACER
@@ -210,6 +213,7 @@ class Server
     _setupHandlers();
     _startAccept();
     _loadPBF(*this);
+    this->_queryTerrain();
   }
 
   /**
@@ -432,7 +436,12 @@ class Server
     _instance.commit();
     _world.setParam("instance", ospray::cpp::Data(_instance));
     _world.commit();
-
+          
+    auto terrainMesh = terrainscene.updateTerrainMesh();
+    ospray::cpp::Instance instanceTerrain(terrainMesh);
+    instanceTerrain.commit();
+    _world.setParam("instance", ospray::cpp::Data(instanceTerrain));
+   
     // complete setup of renderer
     _renderer.setParam("aoSamples", 1);
     _renderer.setParam("aoTransparencyEnabled", true);
@@ -528,6 +537,8 @@ class Server
   std::vector<OSPLight> _lights{3};
   ospray::cpp::Material _material{rendererType, "OBJMaterial"};
   ospray::cpp::Material _emissive{rendererType, "Luminous"};
+  
+  ospTerrainScene terrainscene;
 
   vec3d _origin{0};
   ospray::cpp::Group _group;
@@ -551,6 +562,46 @@ class Server
       _size, OSP_FB_SRGBA, OSP_FB_COLOR | OSP_FB_ACCUM};
 
   HandlerMap _httpHandlers;
+
+  
+
+  void _queryTerrain()
+  {
+    auto connection = this->newConnection();
+    ge::SpatialKey2ui rootKey(0, 0, 0);
+
+    connection->url() =
+        "/arcgis/rest/services/WorldElevation3D/Terrain3D/ImageServer/"
+        + rootKey.toString();
+    connection->write("elevation3d.arcgis.com", 80, [connection, this]() {
+      if (connection->headers()["Content-Type"] != "text/html;charset=UTF-8") {
+        std::cerr << "Expecting text/html;charset=UTF-8 for elevation tile.";
+        return;
+      }
+    
+
+      std::cout << "Query root Tile..." << std::endl;
+
+      /*auto camera = this->camera();
+      const auto origin = this->updateOrigin(position);
+      auto terrainMesh = terrainscene.updateTerrainMesh();
+      ospray::cpp::Instance instanceTerrain(terrainMesh);
+      instanceTerrain.commit();
+      _world.setParam("instance", ospray::cpp::Data(instanceTerrain));*/
+
+      /*auto terrainMesh = terrainscene.createTerrainMesh();
+      ospray::cpp::Instance instanceTerrain(terrainMesh);
+      instanceTerrain.commit();
+      _world.setParam("instance", ospray::cpp::Data(instanceTerrain));*/
+
+      //std::stringstream input(connection->body(), std::ios::binary);
+      //esriPBuffer::FeatureCollectionPBuffer buffer;
+      //if (!buffer.ParseFromString(connection->body())) {
+      //  std::cerr << "Failed to parse FeatureCollectionPBuffer." << std::endl;
+      //  return;
+      //}
+    });
+  }
 };
 
 int _handleCamera(Connection &connection, Server &server)
@@ -667,6 +718,7 @@ int _handleFrame(Connection &connection, Server &server)
   frameBuffer.unmap(fb);
   return status;
 }
+
 
 void _loadPBF(Server &server)
 {

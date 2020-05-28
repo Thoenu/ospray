@@ -1,8 +1,8 @@
 #pragma once
 
-#include "ospray_testing.h"
+//#include "ospray_testing.h"
 
-#include "ArcballCamera.h"
+//#include "ArcballCamera.h"
 #include "ospray/ospray_cpp.h"
 #include "ospcommon/containers/TransactionalBuffer.h"
 #include "ospcommon/utility/multidim_index_sequence.h"
@@ -17,16 +17,8 @@ class ospTerrainScene
   ospTerrainScene();
   ~ospTerrainScene();
 
-  void addObjectToCommit(OSPObject obj);
-  void refreshScene(bool resetCamera = false);
-  bool commitOutstandingHandles();
-  vec3f getCartesianFromLongLatCoordinates(vec3f _vertexLongHeightLat, vec4f _extent, vec2f _extentSize);
- 
-
-private: 
-	cpp::World ospTerrainScene::createWorld();
-	cpp::Group ospTerrainScene::createBoxes();
-	cpp::Group ospTerrainScene::createTerrainMesh();
+  cpp::Group ospTerrainScene::updateTerrainMesh();
+	
 
 public:
   cpp::World world;

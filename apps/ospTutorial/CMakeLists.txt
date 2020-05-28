@@ -23,6 +23,17 @@ add_custom_command(OUTPUT ${PROTO_CPP}
 set(IRTS_SOURCES ${PROJECT_SOURCE_DIR}/http-parser/http_parser.c
                  ${PROJECT_SOURCE_DIR}/jsoncpp/jsoncpp.cpp ${PROTO_CPP})
 
+set(LERCHEADERS 
+  ${PROJECT_SOURCE_DIR}/lerc/include/Lerc_c_api.h 
+  ${PROJECT_SOURCE_DIR}/lerc/include/Lerc_types.h
+  SpatialKey.h
+)
+
+set(TERRAINSOURCES 
+  ospTerrainScene.cpp
+  Tile.cpp
+)
+
 if(MSVC)
   # disable auto-linking and use cmake's dependency handling:
   add_definitions(-DBOOST_ALL_NO_LIB)
@@ -30,12 +41,16 @@ if(MSVC)
   add_definitions(-DBOOST_ALL_DYN_LINK)
 endif(MSVC)
 
+include_directories(${PROJECT_SOURCE_DIR}/lerc/include)
+
 # C++ version
 add_executable(ospTutorialCpp
                ${OSPRAY_RESOURCE}
                ospTutorial.cpp
+               ${TERRAINSOURCES}
                ${IRTS_SOURCES}
-               ${PROTO_SOURCES})
+               ${PROTO_SOURCES}
+               ${LERCHEADERS})
 
 target_include_directories(ospTutorialCpp SYSTEM
                            PRIVATE ${PROJECT_SOURCE_DIR}
@@ -48,17 +63,18 @@ if(MSVC)
   target_link_libraries(ospTutorialCpp
                       PRIVATE ospray
                               Boost::thread
-                              ${LibJpegTurbo_LIBRARIES}
                               ${LibJpegTurbo_LIBRARIES}/turbojpeg.lib
                               ${LibJpegTurbo_LIBRARIES}/jpeg.lib
                               ${LibJpegTurbo_LIBRARIES}/jpeg-static.lib
                               ${LibJpegTurbo_LIBRARIES}/turbojpeg-static.lib
+                              LercLib
                               protobuf::libprotobuf)
 else()
   target_link_libraries(ospTutorialCpp
                       PRIVATE ospray
                               Boost::thread
                               ${LibJpegTurbo_LIBRARIES}
+                              LercLib
                               protobuf::libprotobuf)
 endif()
 

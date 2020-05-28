@@ -23,12 +23,22 @@ cpp::Group ospTerrainScene::createTerrainMesh()
   std::string elevationFilename = testDataPath + "0";
   elevationTile.readURL(elevationFilename, Tile::ELEVATION);
 
-  vec2f tileSize{10.0f, 10.0f};
+  //vec2f tileSize{10.0f, 10.0f};
+  vec4f extent{
+      -180.0f,
+      180.0f,
+      -90.0f,
+      90.0f
+  };
+  vec2f extentSize{extent.y - extent.x, extent.w - extent.z};
+
   vec2ui tileVertexPerSide = elevationTile.pixelSize;
-  vec2f tileDistanceBetweenVertices{tileSize.x / float(tileVertexPerSide.x - 1),
-      tileSize.y / float(tileVertexPerSide.y - 1)};
-  vec2f midPoint{tileSize.x / float(tileVertexPerSide.x),
-      tileSize.y / float(tileVertexPerSide.y)};
+  vec2f tileDistanceBetweenVertices{
+      extentSize.x / float(tileVertexPerSide.x - 1),
+      extentSize.y / float(tileVertexPerSide.y - 1)};
+  vec2f midPoint{extentSize.x / 2.0f, extentSize.y / 2.0f};
+  //vec2f midPoint{extentSize.x / float(tileVertexPerSide.x),
+  //    extentSize.y / float(tileVertexPerSide.y)};
 
   std::vector<vec3f> vertices;
   std::vector<vec3f> colors;
@@ -38,17 +48,21 @@ cpp::Group ospTerrainScene::createTerrainMesh()
   for (int i = 0; i < tileVertexPerSide.x; i++) {
     for (int j = 0; j < tileVertexPerSide.y; j++) {    
       alternate = false;
-      vertices.push_back(
-          vec3f((tileDistanceBetweenVertices.x * float(i)) - midPoint.x,
-              alternate ? 0.0f : 0.2f, // 0.0f,
-              (tileDistanceBetweenVertices.y * float(j)) - midPoint.y));
       
+      //vertices.push_back(
+      //    vec3f((tileDistanceBetweenVertices.x * float(i)) - midPoint.x,
+      //        alternate ? 0.0f : 0.2f, // 0.0f,
+      //        (tileDistanceBetweenVertices.y * float(j)) - midPoint.y));
+      vertices.push_back(
+          vec3f((tileDistanceBetweenVertices.x * float(j)),
+              alternate ? 0.0f : 0.2f, // 0.0f,
+              (tileDistanceBetweenVertices.y * float(i))));
       colors.push_back(vec3f(float(i) / float(tileVertexPerSide.x),
           float(j) / float(tileVertexPerSide.y),
           0.0f));
 
       uvs.push_back(vec2f(float(j) / float(tileVertexPerSide.x),
-          float(i) / float(tileVertexPerSide.y)));
+          1.0 - (float(i) / float(tileVertexPerSide.y))));
       alternate = !alternate;
     }
   }
@@ -57,17 +71,23 @@ cpp::Group ospTerrainScene::createTerrainMesh()
   double *elevation = elevationTile.getElevation();
   for (int i = 0; i < tileVertexPerSide.x; i++) {
     for (int j = 0; j < tileVertexPerSide.y; j++) {
-        int idx = j + i * tileVertexPerSide.y;
-        int srcIdx = j + i * tileVertexPerSide.y;
+        int idx = i + j * tileVertexPerSide.y;
+        int destIdx = i + (tileVertexPerSide.y - j - 1) * tileVertexPerSide.y;
 
-        if (elevation[srcIdx] < -11000.0f) {
+        if (elevation[destIdx] < -11000.0f) {
           vertices[idx].y = 0.0;
         } else {
           //vertices[idx].y = -elevation[srcIdx] / 10000.0f;
-          vertices[idx].y = -elevation[srcIdx] / (elevationTile.dataRange.y*2.0);
+          //vertices[idx].y = -elevation[srcIdx] / (elevationTile.dataRange.y);
+          vertices[idx].y = elevation[destIdx] / 500.0f;
         }
     }
   }
+
+  //for (int i = 0; i < vertices.size(); i++) {
+  //  vertices[i] =
+  //      this->getCartesianFromLongLatCoordinates(vertices[i], extent, extentSize);
+  //}
 
   std::vector<vec3ui> indices;
  
@@ -125,6 +145,39 @@ cpp::Group ospTerrainScene::createTerrainMesh()
   return group;
 }
 
+vec3f ospTerrainScene::getCartesianFromLongLatCoordinates(
+    vec3f _vertexLongHeightLat, vec4f _extent, vec2f _extentSize)
+{
+  // spherecial coordinates
+  vec3f vertPos = _vertexLongHeightLat;
+
+  // convert back to WGS84 coordinate
+  //vertPos.x =
+  //    ((vertPos.x - _extent.x) * _extentSize.x
+   //               / refSystem.scale.x)
+  //    + refSystem.bounds.x;
+  //vertPos.z = ((-vertPos.z + _extent.z) * _extentSize.y
+  //                / refSystem.scale.y)
+  //    + refSystem.bounds.y;
+  // x has intervall [-180, 180]
+  // y has intervall [-90, 90]
+  // define a radius for the sphere
+  float radius = 100.0;
+  // convert x to intervall [0, 360]
+  vertPos.x = vertPos.x - _extent.x; // / 180.0;
+  vertPos.z = vertPos.z - _extent.z; // / 90.0;
+  // convert angles to radian
+  float theta = vertPos.x * 0.01745329251994329576923690768489f;
+  float phi = vertPos.z * 0.01745329251994329576923690768489f; // PI * vertPos.z;
+  // get cartesian coordinates from angles
+  vertPos.x = cos(theta) * sin(phi) * radius;
+  vertPos.z = sin(theta) * sin(phi) * radius;
+  vertPos.y =
+      cos(phi) * radius * (-1.0); //-1 to turn around north and south pole
+
+  vertPos += _vertexLongHeightLat.y;
+  return vertPos;
+}
 
 cpp::World ospTerrainScene::createWorld()
 {
