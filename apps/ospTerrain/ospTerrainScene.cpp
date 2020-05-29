@@ -84,10 +84,10 @@ cpp::Group ospTerrainScene::createTerrainMesh()
     }
   }
 
-  //for (int i = 0; i < vertices.size(); i++) {
-  //  vertices[i] =
-  //      this->getCartesianFromLongLatCoordinates(vertices[i], extent, extentSize);
-  //}
+  for (int i = 0; i < vertices.size(); i++) {
+    vertices[i] =
+        this->getCartesianFromLongLatCoordinates(vertices[i], extent, extentSize);
+  }
 
   std::vector<vec3ui> indices;
  
@@ -152,15 +152,15 @@ vec3f ospTerrainScene::getCartesianFromLongLatCoordinates(
   vec3f vertPos = _vertexLongHeightLat;
 
   // convert back to WGS84 coordinate
-  //vertPos.x =
-  //    ((vertPos.x - _extent.x) * _extentSize.x
-   //               / refSystem.scale.x)
+  //vertPos.x = ((vertPos.x - _extent.x) * _extentSize.x / refSystem.scale.x)
   //    + refSystem.bounds.x;
-  //vertPos.z = ((-vertPos.z + _extent.z) * _extentSize.y
-  //                / refSystem.scale.y)
+  //vertPos.z = ((-vertPos.z + _extent.z) * _extentSize.y / refSystem.scale.y)
+  //    + refSystem.bounds.x;
+
   //    + refSystem.bounds.y;
   // x has intervall [-180, 180]
   // y has intervall [-90, 90]
+  
   // define a radius for the sphere
   float radius = 100.0;
   // convert x to intervall [0, 360]
@@ -170,13 +170,34 @@ vec3f ospTerrainScene::getCartesianFromLongLatCoordinates(
   float theta = vertPos.x * 0.01745329251994329576923690768489f;
   float phi = vertPos.z * 0.01745329251994329576923690768489f; // PI * vertPos.z;
   // get cartesian coordinates from angles
-  vertPos.x = cos(theta) * sin(phi) * radius;
-  vertPos.z = sin(theta) * sin(phi) * radius;
-  vertPos.y =
-      cos(phi) * radius * (-1.0); //-1 to turn around north and south pole
+  
+  // x = math.cos(phi) * math.cos(theta) *rho 
+  // y = math.cos(phi) * math.sin(theta) *rho 
+  // z = math.sin(phi) *rho #z is 'up'
+  
+  vertPos.x = cos(phi) * cos(theta) * radius;
+  vertPos.z = cos(phi) * sin(theta) * radius;
+  vertPos.y = sin(phi) * radius;
 
-  vertPos += _vertexLongHeightLat.y;
+  //vertPos.z = cos(theta) * sin(phi) * radius;
+  //vertPos.x = sin(theta) * sin(phi) * radius;
+  //vertPos.y = cos(phi) * radius * (-1.0); //-1 to turn around north / south pole
+  vec3f dir = vec3f(0.0f, 0.0f, 0.0f) - vertPos;
+  dir = normalize(dir);
+  //dir.normalize();
+  vertPos -= dir * _vertexLongHeightLat.y;
   return vertPos;
+}
+
+vec3f normalize(const vec3f &v)
+{
+  return v * rsqrt(dot(v, v));
+}
+
+
+float dot(const vec3f &a, const vec3f &b)
+{
+  return a.x * b.x + a.y * b.y;
 }
 
 cpp::World ospTerrainScene::createWorld()
