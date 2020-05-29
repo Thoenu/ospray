@@ -2,6 +2,7 @@
 #include "ospcommon/utility/multidim_index_sequence.h"
 #include "Lerc_c_api.h"
 #include "ospray/OSPEnums.h"
+#include <math.h>
 
 typedef unsigned char Byte;
 
@@ -23,13 +24,18 @@ cpp::Group ospTerrainScene::createTerrainMesh()
   std::string elevationFilename = testDataPath + "0";
   elevationTile.readURL(elevationFilename, Tile::ELEVATION);
 
-  //vec2f tileSize{10.0f, 10.0f};
-  vec4f extent{
+  vec4f wgs84Extent{
       -180.0f,
       180.0f,
       -90.0f,
       90.0f
   };
+
+  vec4f extent{-20037507.842788246,
+      20037507.842788246,
+      -20037508.659999996,
+      20037508.340000004};
+
   vec2f extentSize{extent.y - extent.x, extent.w - extent.z};
 
   vec2ui tileVertexPerSide = elevationTile.pixelSize;
@@ -37,8 +43,6 @@ cpp::Group ospTerrainScene::createTerrainMesh()
       extentSize.x / float(tileVertexPerSide.x - 1),
       extentSize.y / float(tileVertexPerSide.y - 1)};
   vec2f midPoint{extentSize.x / 2.0f, extentSize.y / 2.0f};
-  //vec2f midPoint{extentSize.x / float(tileVertexPerSide.x),
-  //    extentSize.y / float(tileVertexPerSide.y)};
 
   std::vector<vec3f> vertices;
   std::vector<vec3f> colors;
@@ -48,11 +52,7 @@ cpp::Group ospTerrainScene::createTerrainMesh()
   for (int i = 0; i < tileVertexPerSide.x; i++) {
     for (int j = 0; j < tileVertexPerSide.y; j++) {    
       alternate = false;
-      
-      //vertices.push_back(
-      //    vec3f((tileDistanceBetweenVertices.x * float(i)) - midPoint.x,
-      //        alternate ? 0.0f : 0.2f, // 0.0f,
-      //        (tileDistanceBetweenVertices.y * float(j)) - midPoint.y));
+
       vertices.push_back(
           vec3f((tileDistanceBetweenVertices.x * float(j)),
               alternate ? 0.0f : 0.2f, // 0.0f,
@@ -79,16 +79,28 @@ cpp::Group ospTerrainScene::createTerrainMesh()
         } else {
           //vertices[idx].y = -elevation[srcIdx] / 10000.0f;
           //vertices[idx].y = -elevation[srcIdx] / (elevationTile.dataRange.y);
-          vertices[idx].y = elevation[destIdx] / 500.0f;
+          //vertices[idx].y = elevation[destIdx] / 500.0f;
+          vertices[idx].y = elevation[destIdx];
         }
     }
   }
 
-  for (int i = 0; i < vertices.size(); i++) {
-    vertices[i] =
-        this->getCartesianFromLongLatCoordinates(vertices[i], extent, extentSize);
-  }
+  std::cout << vertices[0].x << " " << vertices[0].y << " " << vertices[0].z
+            << std::endl;
+  vertices[0] = webMercatorToWGS84(vertices[0]);
+  std::cout << vertices[0].x << " " << vertices[0].y << " " << vertices[0].z
+            << std::endl;
+  vertices[0] =
+      this->getCartesianFromWGS84Coordinates(vertices[0], wgs84Extent);
+  std::cout << vertices[0].x << " " << vertices[0].y << " " << vertices[0].z
+            << std::endl;
 
+  for (int i = 0; i < vertices.size(); i++) {
+    vertices[i] = webMercatorToWGS84(vertices[i]);
+    vertices[i] =
+        this->getCartesianFromWGS84Coordinates(vertices[i], wgs84Extent);
+  }
+  
   std::vector<vec3ui> indices;
  
   for (int i = 0; i < tileVertexPerSide.x; i++) {
@@ -108,7 +120,8 @@ cpp::Group ospTerrainScene::createTerrainMesh()
   mesh.setParam("index", ospray::cpp::Data(indices));
   mesh.commit();
 
-  std::string imgFileName = testDataPath + "worldmap.jpg";
+  //std::string imgFileName = testDataPath + "worldmap.jpg";
+  std::string imgFileName = testDataPath + "worldmap2.jpg";
   imageTile.readURL(imgFileName, Tile::IMAGE);
   // colors
 
@@ -145,9 +158,33 @@ cpp::Group ospTerrainScene::createTerrainMesh()
   return group;
 }
 
-vec3f ospTerrainScene::getCartesianFromLongLatCoordinates(
-    vec3f _vertexLongHeightLat, vec4f _extent, vec2f _extentSize)
+vec3f ospTerrainScene::webMercatorToWGS84(vec3f _point)
 {
+  vec3f res{0.0f, 0.0f, 0.0f};
+  float wgs84EarthRadius = 6378137.0f;
+  // code adapted from esri/geometry/webMercatorUtils
+  res.x = rad2deg(1.0f) * (_point.x / wgs84EarthRadius);
+  res.z = rad2deg(1.0f)
+      * (M_PI / 2 - 2 * atan(exp((-1.0 * _point.z) / wgs84EarthRadius)));
+  res.y = _point.y;
+  return res;
+}
+
+
+vec3f ospTerrainScene::getCartesianFromWGS84Coordinates(
+    vec3f _vertexLongHeightLat, vec4f _extent)
+{
+  /*float wgs84EarthRadius = 6378137.0f;
+  float radius = wgs84EarthRadius + _vertexLongHeightLat.y;
+  float lat = deg2rad(1.0f) * _vertexLongHeightLat.z;
+  float lon = deg2rad(1.0f) * _vertexLongHeightLat.x;
+  float cosLat = cos(lat);
+
+  vec3f vertPos = vec3f(cos(lon) * cosLat * radius, sin(lat) * radius,
+        sin(lon) * cosLat * radius);*/
+
+
+  
   // spherecial coordinates
   vec3f vertPos = _vertexLongHeightLat;
 
@@ -178,15 +215,25 @@ vec3f ospTerrainScene::getCartesianFromLongLatCoordinates(
   vertPos.x = cos(phi) * cos(theta) * radius;
   vertPos.z = cos(phi) * sin(theta) * radius;
   vertPos.y = sin(phi) * radius;
-
+  //*/
   //vertPos.z = cos(theta) * sin(phi) * radius;
   //vertPos.x = sin(theta) * sin(phi) * radius;
   //vertPos.y = cos(phi) * radius * (-1.0); //-1 to turn around north / south pole
-  vec3f dir = vec3f(0.0f, 0.0f, 0.0f) - vertPos;
+
+  vec3f dir = vertPos - vec3f(0.0f, 0.0f, 0.0f);
   dir = normalize(dir);
-  //dir.normalize();
-  vertPos -= dir * _vertexLongHeightLat.y;
+  vertPos += dir * _vertexLongHeightLat.y;
   return vertPos;
+}
+
+float ospTerrainScene::rad2deg(float r)
+{
+  return (180.0 * r) / M_PI;
+}
+
+float ospTerrainScene::deg2rad(float d)
+{
+  return (d * M_PI) / 180.0;
 }
 
 vec3f normalize(const vec3f &v)

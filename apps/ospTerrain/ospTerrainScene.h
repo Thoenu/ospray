@@ -20,13 +20,17 @@ class ospTerrainScene
   void addObjectToCommit(OSPObject obj);
   void refreshScene(bool resetCamera = false);
   bool commitOutstandingHandles();
-  vec3f getCartesianFromLongLatCoordinates(vec3f _vertexLongHeightLat, vec4f _extent, vec2f _extentSize);
- 
+  vec3f getCartesianFromWGS84Coordinates(
+      vec3f _vertexLongHeightLat, vec4f _extent);
+  vec3f webMercatorToWGS84(vec3f _vertexLongHeightLat);
 
 private: 
-	cpp::World ospTerrainScene::createWorld();
-	cpp::Group ospTerrainScene::createBoxes();
-	cpp::Group ospTerrainScene::createTerrainMesh();
+	cpp::World createWorld();
+	cpp::Group createBoxes();
+	cpp::Group createTerrainMesh();
+
+	float rad2deg(float r);
+	float deg2rad(float d);
 
 public:
   cpp::World world;
